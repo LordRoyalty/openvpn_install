@@ -2,13 +2,11 @@
 # For Ubuntu 20.04
 # Discard stdin. Needed when running from an one-liner which includes a newline
 read -N 999999 -t 0.001
-
 # Detect OpenVZ 6
 if [[ $(uname -r | cut -d "." -f 1) -eq 2 ]]; then
 	echo "The system is running an old kernel, which is incompatible with this installer."
 	exit
 fi
-
 # Detect OS
 # $os_version variables aren't always in use, but are kept here for convenience
 if grep -qs "ubuntu" /etc/os-release; then
@@ -43,8 +41,7 @@ if [[ ! -e /dev/net/tun ]] || ! ( exec 7<>/dev/net/tun ) 2>/dev/null; then
 TUN needs to be enabled before running this installer."
 	exit
 fi
-
-new_client () {
+new_client() {
 	# Generates the custom client.ovpn
 	{
 	cat /etc/openvpn/server/client-common.txt
@@ -62,7 +59,6 @@ new_client () {
 	echo "</tls-crypt>"
 	} > ~/"$client".ovpn
 }
-
 if [[ ! -e /etc/openvpn/server/server.conf ]]; then
 	clear
 	echo 'Welcome to this OpenVPN installer!'
