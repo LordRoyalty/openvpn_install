@@ -1,27 +1,64 @@
 #!/bin/bash
-# For Ubuntu 20.04
+#
+# https://github.com/Nyr/openvpn-install
+#
+# Copyright (c) 2013 Nyr. Released under the MIT License.
+
+
+# Detect Debian users running the script with "sh" instead of bash
+if readlink /proc/$$/exe | grep -q "dash"; then
+	echo 'This installer needs to be run with "bash", not "sh".'
+	exit
+fi
+
 # Discard stdin. Needed when running from an one-liner which includes a newline
 read -N 999999 -t 0.001
+
 # Detect OpenVZ 6
 if [[ $(uname -r | cut -d "." -f 1) -eq 2 ]]; then
 	echo "The system is running an old kernel, which is incompatible with this installer."
 	exit
 fi
+
 # Detect OS
 # $os_version variables aren't always in use, but are kept here for convenience
 if grep -qs "ubuntu" /etc/os-release; then
 	os="ubuntu"
 	os_version=$(grep 'VERSION_ID' /etc/os-release | cut -d '"' -f 2 | tr -d '.')
 	group_name="nogroup"
+elif [[ -e /etc/debian_version ]]; then
+	os="debian"
+	os_version=$(grep -oE '[0-9]+' /etc/debian_version | head -1)
+	group_name="nogroup"
+elif [[ -e /etc/centos-release ]]; then
+	os="centos"
+	os_version=$(grep -oE '[0-9]+' /etc/centos-release | head -1)
+	group_name="nobody"
+elif [[ -e /etc/fedora-release ]]; then
+	os="fedora"
+	os_version=$(grep -oE '[0-9]+' /etc/fedora-release | head -1)
+	group_name="nobody"
 else
 	echo "This installer seems to be running on an unsupported distribution.
-Supported distribution is Ubuntu"
+Supported distributions are Ubuntu, Debian, CentOS, and Fedora."
 	exit
 fi
 
 if [[ "$os" == "ubuntu" && "$os_version" -lt 1804 ]]; then
 	echo "Ubuntu 18.04 or higher is required to use this installer.
 This version of Ubuntu is too old and unsupported."
+	exit
+fi
+
+if [[ "$os" == "debian" && "$os_version" -lt 9 ]]; then
+	echo "Debian 9 or higher is required to use this installer.
+This version of Debian is too old and unsupported."
+	exit
+fi
+
+if [[ "$os" == "centos" && "$os_version" -lt 7 ]]; then
+	echo "CentOS 7 or higher is required to use this installer.
+This version of CentOS is too old and unsupported."
 	exit
 fi
 
@@ -41,7 +78,8 @@ if [[ ! -e /dev/net/tun ]] || ! ( exec 7<>/dev/net/tun ) 2>/dev/null; then
 TUN needs to be enabled before running this installer."
 	exit
 fi
-new_client() {
+
+new_client () {
 	# Generates the custom client.ovpn
 	{
 	cat /etc/openvpn/server/client-common.txt
@@ -59,9 +97,10 @@ new_client() {
 	echo "</tls-crypt>"
 	} > ~/"$client".ovpn
 }
+
 if [[ ! -e /etc/openvpn/server/server.conf ]]; then
 	clear
-	echo 'Welcome to this OpenVPN installer!'
+	echo 'Welcome to this OpenVPN road warrior installer!'
 	# If system has a single IPv4, it is selected automatically. Else, ask the user
 	if [[ $(ip -4 addr | grep inet | grep -vEc '127(\.[0-9]{1,3}){3}') -eq 1 ]]; then
 		ip=$(ip -4 addr | grep inet | grep -vE '127(\.[0-9]{1,3}){3}' | cut -d '/' -f 1 | grep -oE '[0-9]{1,3}(\.[0-9]{1,3}){3}')
@@ -120,10 +159,10 @@ if [[ ! -e /etc/openvpn/server/server.conf ]]; then
 		read -p "Protocol [1]: " protocol
 	done
 	case "$protocol" in
-		1|"")
+		1|"") 
 		protocol=udp
 		;;
-		2)
+		2) 
 		protocol=tcp
 		;;
 	esac
@@ -143,9 +182,8 @@ if [[ ! -e /etc/openvpn/server/server.conf ]]; then
 	echo "   4) OpenDNS"
 	echo "   5) Quad9"
 	echo "   6) AdGuard"
-	echo "   7) Pihole"
 	read -p "DNS server [1]: " dns
-	until [[ -z "$dns" || "$dns" =~ ^[1-7]$ ]]; do
+	until [[ -z "$dns" || "$dns" =~ ^[1-6]$ ]]; do
 		echo "$dns: invalid selection."
 		read -p "DNS server [1]: " dns
 	done
@@ -159,7 +197,12 @@ if [[ ! -e /etc/openvpn/server/server.conf ]]; then
 	echo "OpenVPN installation is ready to begin."
 	# Install a firewall in the rare case where one is not already available
 	if ! systemctl is-active --quiet firewalld.service && ! hash iptables 2>/dev/null; then
-		if [[ "$os" == "ubuntu" ]]; then
+		if [[ "$os" == "centos" || "$os" == "fedora" ]]; then
+			firewall="firewalld"
+			# We don't want to silently enable firewalld, so we give a subtle warning
+			# If the user continues, firewalld will be installed and enabled during setup
+			echo "firewalld, which is required to manage routing tables, will also be installed."
+		elif [[ "$os" == "debian" || "$os" == "ubuntu" ]]; then
 			# iptables is way less invasive than firewalld so no warning is given
 			firewall="iptables"
 		fi
@@ -171,9 +214,15 @@ if [[ ! -e /etc/openvpn/server/server.conf ]]; then
 		echo "[Service]
 LimitNPROC=infinity" > /etc/systemd/system/openvpn-server@server.service.d/disable-limitnproc.conf
 	fi
-	if [[ "$os" = "ubuntu" ]]; then
-		apt-get update & apt-get upgrade -y
+	if [[ "$os" = "debian" || "$os" = "ubuntu" ]]; then
+		apt-get update
 		apt-get install -y openvpn openssl ca-certificates $firewall
+	elif [[ "$os" = "centos" ]]; then
+		yum install -y epel-release
+		yum install -y openvpn openssl ca-certificates tar $firewall
+	else
+		# Else, OS must be Fedora
+		dnf install -y openvpn openssl ca-certificates tar $firewall
 	fi
 	# If firewalld was just installed, enable it
 	if [[ "$firewall" == "firewalld" ]]; then
@@ -263,9 +312,6 @@ server 10.8.0.0 255.255.255.0" > /etc/openvpn/server/server.conf
 		6)
 			echo 'push "dhcp-option DNS 94.140.14.14"' >> /etc/openvpn/server/server.conf
 			echo 'push "dhcp-option DNS 94.140.15.15"' >> /etc/openvpn/server/server.conf
-		;;
-		7)
-			echo 'push "dhcp-option DNS 10.8.0.1"' >> /etc/openvpn/server/server.conf
 		;;
 	esac
 	echo "keepalive 10 120
