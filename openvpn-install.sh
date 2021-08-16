@@ -1,9 +1,4 @@
 #!/bin/bash
-#
-# https://github.com/Nyr/openvpn-install
-#
-# Copyright (c) 2013 Nyr. Released under the MIT License.
-
 
 # Detect Debian users running the script with "sh" instead of bash
 if readlink /proc/$$/exe | grep -q "dash"; then
@@ -182,8 +177,9 @@ if [[ ! -e /etc/openvpn/server/server.conf ]]; then
 	echo "   4) OpenDNS"
 	echo "   5) Quad9"
 	echo "   6) AdGuard"
+	echo "   7) Pihole"
 	read -p "DNS server [1]: " dns
-	until [[ -z "$dns" || "$dns" =~ ^[1-6]$ ]]; do
+	until [[ -z "$dns" || "$dns" =~ ^[1-7]$ ]]; do
 		echo "$dns: invalid selection."
 		read -p "DNS server [1]: " dns
 	done
@@ -312,6 +308,9 @@ server 10.8.0.0 255.255.255.0" > /etc/openvpn/server/server.conf
 		6)
 			echo 'push "dhcp-option DNS 94.140.14.14"' >> /etc/openvpn/server/server.conf
 			echo 'push "dhcp-option DNS 94.140.15.15"' >> /etc/openvpn/server/server.conf
+		;;
+		7)
+			echo 'push "dhcp-option DNS 10.8.0.1"' >> /etc/openvpn/server/server.conf
 		;;
 	esac
 	echo "keepalive 10 120
