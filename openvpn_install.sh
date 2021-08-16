@@ -1,7 +1,6 @@
 #!/bin/bash
 # For Ubuntu 20.04
 
-
 # Discard stdin. Needed when running from an one-liner which includes a newline
 read -N 999999 -t 0.001
 
